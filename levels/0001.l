@@ -1,0 +1,11 @@
+0__TT_____2
+_SSSS_SSSSS
+__SAS_SC___
+__S_S_SSSS_
+___________
+WWWWT_TWWWW
+___________
+_SS___S_SS_
+_DSSS_S_BS_
+SSS___SSSS_
+3___S_____1
