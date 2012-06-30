@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+
+{% block title %}Game{% endblock %}
+
+{% block style %}
+<style type="text/css">
+#wrapper {
+	text-align: center;
+	margin: auto;
+	width: 700px;
+	height: 100%;
+}
+</style>
+{% endblock %}
+
+{% block script %}
+<script src="/static/crafty.js"></script>
+<script src="/static/swfobject.js"></script>
+<script src="/static/web_socket.js"></script>
+<script src="/static/tt.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="wrapper">
+	<div id="cr-stage">
+		<script>init_game();</script>
+	</div>
+</div>
+{% endblock %}
