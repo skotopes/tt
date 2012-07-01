@@ -110,6 +110,7 @@ class GameClient(object):
 		self.teamid = None
 		self.x = 0
 		self.y = 0
+		self.r = 0
 		self.server = server
 		# io initialisation
 		self.io = WebSocket(connection)
@@ -122,7 +123,10 @@ class GameClient(object):
 			if d.startswith('iwannaplay'):
 				self.register()
 			elif d.startswith('pos'):
-				(self.x,self.y) = d.split(':')[1:]
+				(x,y,r) = d.split(':')[1:]
+				self.x = int(x)
+				self.y = int(y)
+				self.r = int(r)
 				self.server.updateClientPos(self)
 			elif d.startswith('fire'):
 				self.server.fire(self)
@@ -140,13 +144,12 @@ class GameClient(object):
 		else:
 			self.io.write('level:%s' % self.server.getLevel(self))
 			self.io.write('okay:%d:%d' % (self.teamid, self.number))
+			self.server.updatePosClient(self)
+			
 			print 'client registred', self.number
 
-	def move(self):
-		pass
-
-	def otherMove(self):
-		pass
+	def updateOpponent(self, client):
+		self.io.write('update:%d:%d:%d:%d' % (client.teamid, client.x, client.y, client.r))
 
 class GameServer(object):
 	"""docstring for GameServer"""
@@ -185,9 +188,20 @@ class GameServer(object):
 	def unregister(self, client):
 		self.teams[client.teamid]['p'].remove(client)
 		self.players.remove(client)
+
+	# we'd like to know about other
+	def updatePosClient(self, client):
+		for c in self.players:
+			if client.number == c.number:
+				continue
+			client.updateOpponent(c)
 	
+	# other would like to know about us
 	def updateClientPos(self, client):
-		print client.x, client.y
+		for c in self.players:
+			if client.number == c.number:
+				continue
+			c.updateOpponent(client)
 	
 	def getLevel(self, client):
 		f = open(path.join(config.LEVELS_DIR, '0001.l'))
