@@ -170,7 +170,7 @@ class GameClient(object):
 	
 class GameServer(object):
 	"""docstring for GameServer"""
-	def __init__(self):
+	def __init__(self, nl=False):
 		super(GameServer, self).__init__()
 		self.tcp_server = None
 		self.sequence = 0
@@ -181,11 +181,16 @@ class GameServer(object):
 			{ 'w':0, "p":[] },
 			{ 'w':0, "p":[] }
 		]
+		if nl:
+			self.loop = loop.make()
+			self.tcp_server = TcpServer("127.0.0.1", 18888, self.loop)
+		else:
+			self.loop = loop
+			self.tcp_server = TcpServer("127.0.0.1", 18888)
+		self.tcp_server.on('connect', self.on_connect)
 	
 	def run(self):
-		self.tcp_server = TcpServer("127.0.0.1", 18888)
-		self.tcp_server.on('connect', self.on_connect)
-		loop.run()
+		self.loop.run()
 
 	def on_connect(self, connection):
 		GameClient(self, connection)

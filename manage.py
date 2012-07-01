@@ -27,11 +27,6 @@ class Main(object):
 		else:
 			getattr(self, 'action'+self.args[0])(*self.args[1:])
 
-	def actionStartGS(self):
-		from gameserver import GameServer
-		gs = GameServer()
-		gs.run()
-	
 	def actionStartWeb(self):
 		app.run()
 
@@ -44,7 +39,7 @@ class Main(object):
 			working_directory='.',
 			pidfile=FileLock('/tmp/wl-fcgi'),
 		)
-		ctx.stderr = open('error.log', 'w+')
+		ctx.stderr = open('wsgi.log', 'w+')
 		with ctx:
 			open('wl-fcgi.pid', 'w').write(str(getpid()))
 			WSGIServer(app, bindAddress='fcgi.sock', umask=0000).run()
@@ -55,6 +50,39 @@ class Main(object):
 		from time import sleep
 		kill(int(open('wl-fcgi.pid', 'r').read()), 15)
 		lock = FileLock('/tmp/wl-fcgi')
+		countdown = 15
+		while lock.is_locked() and countdown > 0:
+			countdown -= 1
+		if lock.is_locked():
+			exit(1)
+
+	def actionStartGS(self):
+		from gameserver import GameServer
+		gs = GameServer()
+		gs.run()
+
+	def actionStartGSD(self):
+		from gameserver import GameServer
+		from daemon import DaemonContext
+		from lockfile import FileLock
+		from os import getpid
+		ctx = DaemonContext(
+			working_directory='.',
+			pidfile=FileLock('/tmp/gs-fcgi'),
+		)
+		ctx.stderr = open('gsd.log', 'w+')
+		ctx.stdout = ctx.stderr
+		with ctx:
+			open('gsd.pid', 'w').write(str(getpid()))
+			gs = GameServer(True)
+			gs.run()
+
+	def actionStopGSD(self):
+		from lockfile import FileLock
+		from os import kill
+		from time import sleep
+		kill(int(open('gsd.pid', 'r').read()), 15)
+		lock = FileLock('/tmp/gs-fcgi')
 		countdown = 15
 		while lock.is_locked() and countdown > 0:
 			countdown -= 1
