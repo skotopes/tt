@@ -122,8 +122,39 @@ function op_update(data) {
 };
 
 function op_fire(data) {
-	t = teams[teams_map[data[1]]];
+	ob = teams[teams_map[data[1]]]['obj'];
 	// toododdododo
+	rx = ob.x + 25;
+	ry = ob.y + 25;
+	rr = ob.rotation;
+	
+	Crafty.e("2D, DOM, MoveCollision, Color")
+		.origin('center')
+		.color('orange')
+		.attr({ x: rx, y: ry, w: 4, h: 4, rotation: rr, _speed: 10, _parent: ob })
+		.trackCollision()
+		.bind("EnterFrame", function (delta) {
+			// calculate x,y displacement
+			dx = Math.round(Math.sin(this.rotation * (Math.PI / 180)) * 1000 * this._speed) / 1000;
+			dy = - Math.round(Math.cos(this.rotation * (Math.PI / 180)) * 1000 * this._speed) / 1000;
+			// new position
+			x = this.x + dx;
+			y = this.y + dy;
+			// check collisions
+			cldd = this.is_collided(x, y, this.w, this.h);
+			// apply if everyting is fine
+			if (!cldd || cldd == this._parent) {
+				this.x = x;
+				this.y = y;
+				this.trigger("Moved", {x:dx, y:dy});
+			} else {
+				this.destroy();
+			}
+			if (x<0 || x> CANVAS_WIDTH || y<0 || y>CANVAS_HEIGHT) {
+				this.destroy();
+			}
+		});
+	
 };
 
 function op_remove(data) {

@@ -38,7 +38,7 @@ class GameClient(object):
 				by = int(by)
 				self.server.updateHit(who, by)
 			else:
-				print "UNKNOWN ACTION"
+				print "UNKNOWN ACTION", d
 	
 	def onClose(self):
 		print 'client gone'
