@@ -37,19 +37,19 @@ class Main(object):
 		from os import getpid
 		ctx = DaemonContext(
 			working_directory='.',
-			pidfile=FileLock('/tmp/wl-fcgi'),
+			pidfile=FileLock('/tmp/tt-fcgi'),
 		)
-		ctx.stderr = open('wsgi.log', 'w+')
+		ctx.stderr = open('fcgi.log', 'w+')
 		with ctx:
-			open('wl-fcgi.pid', 'w').write(str(getpid()))
+			open('fcgi.pid', 'w').write(str(getpid()))
 			WSGIServer(app, bindAddress='fcgi.sock', umask=0000).run()
 
 	def actionStopFCGI(self):
 		from lockfile import FileLock
 		from os import kill
 		from time import sleep
-		kill(int(open('wl-fcgi.pid', 'r').read()), 15)
-		lock = FileLock('/tmp/wl-fcgi')
+		kill(int(open('fcgi.pid', 'r').read()), 15)
+		lock = FileLock('/tmp/tt-fcgi')
 		countdown = 15
 		while lock.is_locked() and countdown > 0:
 			countdown -= 1
@@ -68,7 +68,7 @@ class Main(object):
 		from os import getpid
 		ctx = DaemonContext(
 			working_directory='.',
-			pidfile=FileLock('/tmp/gs-fcgi'),
+			pidfile=FileLock('/tmp/gsd'),
 		)
 		ctx.stderr = open('gsd.log', 'w+')
 		ctx.stdout = ctx.stderr
@@ -82,7 +82,7 @@ class Main(object):
 		from os import kill
 		from time import sleep
 		kill(int(open('gsd.pid', 'r').read()), 15)
-		lock = FileLock('/tmp/gs-fcgi')
+		lock = FileLock('/tmp/gsd')
 		countdown = 15
 		while lock.is_locked() and countdown > 0:
 			countdown -= 1
