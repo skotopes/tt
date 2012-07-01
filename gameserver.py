@@ -183,10 +183,10 @@ class GameServer(object):
 		]
 		if nl:
 			self.loop = loop.make()
-			self.tcp_server = TcpServer("127.0.0.1", 18888, self.loop)
+			self.tcp_server = TcpServer("0.0.0.0", 18888, self.loop)
 		else:
 			self.loop = loop
-			self.tcp_server = TcpServer("127.0.0.1", 18888)
+			self.tcp_server = TcpServer("0.0.0.0", 18888)
 		self.tcp_server.on('connect', self.on_connect)
 	
 	def run(self):

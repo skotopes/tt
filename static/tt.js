@@ -135,7 +135,7 @@ function op_remove(data) {
 };
 
 function init() {
-	ws = new WebSocket("ws://127.0.0.1:18888/");
+	ws = new WebSocket(ws_url);
 
 	ws.onopen = function() {
 		console.log('socket: open');
