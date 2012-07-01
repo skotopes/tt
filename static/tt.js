@@ -22,51 +22,64 @@ var teams_map = {
 	3:3
 };
 var teams = [
-	{},
-	{},
-	{},
-	{}
+	{ cnt: "blue", w:0 },
+	{ cnt: "red", w:0 },
+	{ cnt: "green", w:0 },
+	{ cnt: "yellow", w:0 }
 ];
 
-function init_level(data) {
+function level_init(data) {
 	lvl = data[1];
 	r = 0; c = 0;
 	for (i=0; i<lvl.length; i++) {
 		s = lvl[i];
 		if (s == '\n') {
+			// New row
 			r++;
 			c = 0;
 			continue;
 		} else if (s == '_') {
-			// empty
+			// Empty
 		} else if (s == '0' || s == '1' || s == '2' || s == '3') {
-			// respawn base
+			// Respawn base
 			teams[teams_map[s]]['rx'] = c;
 			teams[teams_map[s]]['ry'] = r;
-		} else if (s == 'A' || s == 'B' || s == 'C' || s == 'D') {
-			// flag base
-			teams[teams_map[s]]['fx'] = c;
-			teams[teams_map[s]]['fy'] = r;
-			
-			Crafty.e("Wall, 2D, DOM, EnvSprite" + s)
-				.attr({ x: c*50, y: r*50, w: 50, h: 50 })
-				.origin('center');
+			Crafty.e("Base, 2D, DOM, FlagSprite" + s)
+				.origin('center')
+				.attr({ x: c*50, y: r*50, w: 50, h: 50 });
+		} else if (s == 'T') {
+			// Tree: rotate them!
+			rot = 90 * Math.floor(Math.random()*4);
+			Crafty.e("Tree, 2D, DOM, MoveCollision, EnvSprite" + s)
+				.origin('center')
+				.attr({ x: c*50, y: r*50, w: 50, h: 50, rotation: rot })
+				.trackCollision();
 		} else {
+			// Other env
 			Crafty.e("Wall, 2D, DOM, MoveCollision, EnvSprite" + s)
+				.origin('center')
 				.attr({ x: c*50, y: r*50, w: 50, h: 50 })
-				.trackCollision()
-				.origin('center');
+				.trackCollision();
 		};
 		c++;
 	}
 };
 
-function init_player(data) {
-	rx = teams[data[1]]['rx'] * 50;
-	ry = teams[data[1]]['ry'] * 50;
-	player = Crafty.e("2D, DOM, MoveCollision, MoveMachine, TankSprite" + data[1])
-		.attr({ x: rx, y: ry, w: 50, h: 50 })
+function stats_init(data) {
+	for (var i=0;i<4;i++) {
+		t = teams[i]
+		t['w'] = parseInt(data[i+1]);
+		$('#'+t['cnt']).text(t['w']);
+	}
+};
+
+function player_init(data) {
+	t = teams[data[1]];
+	rx = t['rx'] * 50;
+	ry = t['ry'] * 50;
+	t['obj'] = Crafty.e("Player, 2D, DOM, MoveCollision, MoveMachine, Weapon, TankSprite" + data[1])
 		.origin('center')
+		.attr({ x: rx, y: ry, w: 50, h: 50, _team: data[1] })
 		.setupMove(SPEED, { UP_ARROW: 0, DOWN_ARROW: 180, RIGHT_ARROW: 90, LEFT_ARROW: -90 })
 		.trackCollision()
 		.bind("Moved", function (delta) {
@@ -76,20 +89,31 @@ function init_player(data) {
 			if (this.y > CANVAS_HEIGHT-50) this.y = CANVAS_HEIGHT-50;
 			ws.send('pos:' + this.x + ':' + this.y + ':' + this.rotation)
 		});
-	ws.send('pos:' + player.x + ':' + player.y + ':' + player.rotation)
+	ws.send('pos:' + t['obj'].x + ':' + t['obj'].y + ':' + t['obj'].rotation)
 };
 
-function update_opponent(data) {
+function any_hit(data) {
+	t = teams[data[1]];
+	w = teams[data[2]];
+	w['w'] += 1
+	$('#'+w['cnt']).text(w['w']);
+	t['obj'].x = t['rx'] * 50;
+	t['obj'].y = t['ry'] * 50;
+};
+
+function op_update(data) {
 	t = teams[teams_map[data[1]]];
 	tx = parseInt(data[2]);
 	ty = parseInt(data[3]);
 	tr = parseInt(data[4]);
-	console.log(data[1]);
 	if (!t.hasOwnProperty('obj')) {
-		t['obj'] = Crafty.e("2D, DOM, MoveCollision, TankSprite" + data[1])
-			.attr({ x: tx, y: ty, w: 50, h: 50, rotation: tr })
+		t['obj'] = Crafty.e("Opponent, 2D, DOM, MoveCollision, TankSprite" + data[1])
 			.origin('center')
-			.trackCollision();
+			.attr({ x: tx, y: ty, w: 50, h: 50, rotation: tr, _team: data[1] })
+			.trackCollision()
+			.bind('Hit', function (by) {
+				ws.send('hit:' + this._team + ':' + by._team);
+			});
 	} else { 
 		t['obj'].x = tx;
 		t['obj'].y = ty;
@@ -97,34 +121,55 @@ function update_opponent(data) {
 	}
 };
 
+function op_fire(data) {
+	t = teams[teams_map[data[1]]];
+	// toododdododo
+};
+
+function op_remove(data) {
+	t = teams[teams_map[data[1]]];
+	if (t.hasOwnProperty('obj')) {
+		t['obj'].destroy();
+		delete t['obj'];
+	}
+};
+
 function init() {
 	ws = new WebSocket("ws://127.0.0.1:18888/");
 
 	ws.onopen = function() {
-		console.log("Socket: open");
+		console.log('socket: open');
 		ws.send('iwannaplay');
 	};
 	ws.onmessage = function(e) {
 		data = e.data.split(':');
+		console.log('engine:', data);
 		if (data[0] == 'fuckoff') {
-			alert("engine: Server do not wanna play with us.");
+			alert('engine:', e.data);
 		} else if (data[0] == 'okay') {
-			console.log('engine: lets play:', e.data);
-			init_player(data);
+			player_init(data);
+		} else if (data[0] == 'hit') {
+			any_hit(data);
 		} else if (data[0] == 'level') {
-			console.log('engine: got level');
-			init_level(data);
-		} else if (data[0] == 'update') {
-			console.log('engine: update notify', e.data);
-			update_opponent(data);
+			level_init(data);
+		} else if (data[0] == 'stats') {
+			stats_init(data);
+		} else if (data[0] == 'op_update') {
+			op_update(data);
+		} else if (data[0] == 'op_fire') {
+			op_fire(data);
+		} else if (data[0] == 'op_remove') {
+			op_remove(data);
 		} else {
-			console.log("engine: unknow data <" + e.data + ">");
+			console.log('[ERROR] unknow data type', data[0]);
 		}
 	};
 	ws.onclose = function() {
+		console.log('socket: closed');
 		alert("Server connection closed.");
 	};
 	ws.onerror = function() {
+		console.log('socket: error');
 		alert("Socket error, report this bug to aku");
 	};
 
@@ -145,11 +190,7 @@ function init() {
 		EnvSpriteT:  [0, 2],
 		EnvSpriteW:  [1, 2],
 		EnvSpriteS:  [2, 2],
-		// Tank bases
-		EnvSpriteA:  [3, 2],
-		EnvSpriteB:  [3, 2],
-		EnvSpriteC:  [3, 2],
-		EnvSpriteD:  [3, 2],
+		EnvSpriteB:  [3, 2]
 	});
 	
 };

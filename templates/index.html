@@ -10,22 +10,41 @@
 	width: 550px;
 	height: 100%;
 }
+.right {
+	float: right;
+}
+.left {
+	float: left;
+}
+.clear {
+	clear: both;
+}
 </style>
 {% endblock %}
 
 {% block script %}
+<script src="/static/jquery-1.7.2.min.js"></script>
 <script src="/static/swfobject.js"></script>
 <script src="/static/web_socket.js"></script>
 <script src="/static/crafty.js"></script>
 <script src="/static/movecollision.js"></script>
 <script src="/static/movemachine.js"></script>
+<script src="/static/weapon.js"></script>
 <script src="/static/tt.js"></script>
 {% endblock %}
 
 {% block content %}
 <div id="wrapper">
-	<div id="cr-stage">
+	<div id="score">
+		<strong id="yellow" class="right">0</strong>
+		<strong id="blue" class="left">0</strong>
+	</div>
+	<div id="cr-stage" class="clear">
 		<script>init();</script>
+	</div>
+	<div id="score">
+		<strong id="red" class="right">0</strong>
+		<strong id="green" class="left">0</strong>
 	</div>
 </div>
 {% endblock %}

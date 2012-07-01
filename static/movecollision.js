@@ -1,6 +1,9 @@
 Crafty.c("MoveCollision", {
 	_objects: [],
 	init: function() {
+		this.bind("Remove", function (delta) {
+			this._objects.pop(this);
+		});
 	},
 	is_collided: function(x,y,w,h) {
 		for (var i=0; i<this._objects.length; i++) {
@@ -8,7 +11,7 @@ Crafty.c("MoveCollision", {
 			if (ob == this)
 				continue;
 			if (ob.intersect(x,y,w,h)) {
-				return true;
+				return ob;
 			}
 		}
 		return false;
