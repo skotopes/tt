@@ -24,8 +24,8 @@ var teams_map = {
 var teams = [
 	{ cnt: "blue", w:0 },
 	{ cnt: "red", w:0 },
-	{ cnt: "green", w:0 },
-	{ cnt: "yellow", w:0 }
+	{ cnt: "yellow", w:0 },
+	{ cnt: "green", w:0 }
 ];
 
 function level_init(data) {
