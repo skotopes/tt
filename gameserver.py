@@ -10,69 +10,99 @@ class GameClient(object):
 		# internals
 		self.number = None
 		self.teamid = None
+		self.buffer = []
 		self.x = 0
 		self.y = 0
 		self.r = 0
 		self.server = server
 		# io initialisation
 		self.io = WebSocket(connection)
-		self.io.on('data', self.onData)
-		self.io.on('close', self.onClose)
+		self.io.on('data', self._onData)
+		self.io.on('close', self._onClose)
+		self.io.on('pause', self._onPause)
 		self.io.pause(False)
-		
-	def onData(self, data):
+	
+	def _onData(self, data):
 		for d in data:
 			if d.startswith('iwannaplay'):
-				self.register()
+				self._register()
 			elif d.startswith('pos'):
-				(x,y,r) = d.split(':')[1:]
-				self.x = int(x)
-				self.y = int(y)
-				self.r = int(r)
-				self.server.updateClientPos(self)
+				self._position(d)
 			elif d.startswith('fire'):
-				self.server.updateFire(self)
+				self._fire()
 			elif d.startswith('hit'):
-				(who, by) = d.split(':')[1:]
-				who = int(who)
-				by = int(by)
-				self.server.updateHit(who, by)
+				self._hit(d)
 			else:
 				print "UNKNOWN ACTION", d
 	
-	def onClose(self):
+	def _onClose(self):
 		print 'client gone'
 		if self.number:
 			self.server.unregister(self)
 
-	def register(self):
+	def _onPause(self, pause):
+		if pause == False:
+			for d in self.buffer:
+				self.io.write(d)
+
+	def _write(self, data):
+		if self.io.w_paused:
+			if len(self.buffer) > 70:
+				# Sloooowpoke
+				self.io.close()
+				return
+			self.buffer.append(data)
+		else:
+			self.io.write(data)
+
+	def _register(self):
 		self.server.register(self)
 		if not self.number:
-			self.io.write('fuckoff')
+			self._write('fuckoff')
 			print 'we are not in mood', self.number
 		else:
-			self.io.write('level:%s' % self.server.getLevel(self))
-			self.io.write('okay:%d:%d' % (self.teamid, self.number))
+			self._write('level:%s' % self.server.getLevel(self))
+			self._write('okay:%d:%d' % (self.teamid, self.number))
 			stats = self.server.getStats()
-			self.io.write('stats:%d:%d:%d:%d' % (stats[0], stats[1], stats[2], stats[3]))
+			self._write('stats:%d:%d:%d:%d' % (stats[0], stats[1], stats[2], stats[3]))
 			self.server.updatePosClient(self)
 			print 'client registred', self.number
 
+	def _position(self, d):
+		(x,y,r) = d.split(':')[1:]
+		x = int(x)
+		y = int(y)
+		r = int(r)
+		if self.x!=x or self.y!=y or self.r!=r:
+			self.x = x
+			self.y = y
+			self.r = r
+			self.server.updateClientPos(self)
+		
+	def _fire(self):
+		self.server.updateFire(self)
+	
+	def _hit(self, d):
+		(who, by) = d.split(':')[1:]
+		who = int(who)
+		by = int(by)
+		self.server.updateHit(who, by)
+	
 	def anyHit(self, who, by):
-		self.io.write('hit:%d:%d' % (who, by))
+		self._write('hit:%d:%d' % (who, by))
 	
 	def updateOpponent(self, client):
-		self.io.write('op_update:%d:%d:%d:%d' % (client.teamid, client.x, client.y, client.r))
+		self._write('op_update:%d:%d:%d:%d' % (client.teamid, client.x, client.y, client.r))
 
 	def updateOpponentFire(self, client):
-		self.io.write('op_fire:%d' % (client.teamid))
+		self._write('op_fire:%d' % (client.teamid))
 
 	def removeOpponent(self, client):
-		self.io.write('op_remove:%d' % client.teamid)
+		self._write('op_remove:%d' % client.teamid)
 	
 class GameServer(object):
 	"""docstring for GameServer"""
-	def __init__(self, nl=False):
+	def __init__(self):
 		super(GameServer, self).__init__()
 		self.tcp_server = None
 		self.sequence = 0
@@ -83,12 +113,8 @@ class GameServer(object):
 			{ 'w':0, "p":[] },
 			{ 'w':0, "p":[] }
 		]
-		if nl:
-			self.loop = loop.make()
-			self.tcp_server = TcpServer("0.0.0.0", 18888, self.loop)
-		else:
-			self.loop = loop
-			self.tcp_server = TcpServer("0.0.0.0", 18888)
+		self.loop = loop
+		self.tcp_server = TcpServer("0.0.0.0", 18888)
 		self.tcp_server.on('connect', self.on_connect)
 	
 	def run(self):

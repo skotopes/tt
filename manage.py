@@ -60,34 +60,6 @@ class Main(object):
 		from gameserver import GameServer
 		gs = GameServer()
 		gs.run()
-
-	def actionStartGSD(self):
-		from gameserver import GameServer
-		from daemon import DaemonContext
-		from lockfile import FileLock
-		from os import getpid
-		ctx = DaemonContext(
-			working_directory='.',
-			pidfile=FileLock('/tmp/gsd'),
-		)
-		ctx.stderr = open('gsd.log', 'w+')
-		ctx.stdout = ctx.stderr
-		with ctx:
-			open('gsd.pid', 'w').write(str(getpid()))
-			gs = GameServer(True)
-			gs.run()
-
-	def actionStopGSD(self):
-		from lockfile import FileLock
-		from os import kill
-		from time import sleep
-		kill(int(open('gsd.pid', 'r').read()), 15)
-		lock = FileLock('/tmp/gsd')
-		countdown = 15
-		while lock.is_locked() and countdown > 0:
-			countdown -= 1
-		if lock.is_locked():
-			exit(1)
 	
 if __name__ == '__main__':
 	Main()()

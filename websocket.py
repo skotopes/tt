@@ -33,6 +33,8 @@ Sec-WebSocket-Protocol: chat\r\n\r\n'
 		self.connection.on('data', self._onData)
 		self.connection.on('close', self._onClose)
 		self.connection.on('pause', self._onPause)
+		self.w_paused = False
+		self.r_paused = True
 
 	# proto v76 obsolet
 	def _extractKey76(self, key):
@@ -181,8 +183,9 @@ Sec-WebSocket-Protocol: chat\r\n\r\n'
 		self.callbacks['close']()
 
 	def _onPause(self, pause):
-		print "pause"
-
+		self.w_paused = pause
+		self.callbacks['pause'](pause)
+	
 	# common public methods
 	def write(self, data):
 		if self.version == 76:
@@ -190,7 +193,11 @@ Sec-WebSocket-Protocol: chat\r\n\r\n'
 		elif self.version == 13:
 			self._write13(data)
 
+	def close(self):
+		self.connection.close()
+
 	def pause(self, pause):
+		self.r_paused = pause
 		self.connection.pause(pause)
 	
 	def on(self, event, callback):
