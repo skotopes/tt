@@ -1,0 +1,7 @@
+HOW TO:
+==================================
+
+00) Installing dependences: pip install -r requirements.txt
+01) Running web server: ./manage.py StartWeb
+10) Running game server: ./manage.py StartGS
+11) open in your browser http://127.0.0.1:5000/
