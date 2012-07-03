@@ -23,17 +23,21 @@ class GameClient(object):
 		self.io.pause(False)
 	
 	def _onData(self, data):
-		for d in data:
-			if d.startswith('iwannaplay'):
-				self._register()
-			elif d.startswith('pos'):
-				self._position(d)
-			elif d.startswith('fire'):
-				self._fire()
-			elif d.startswith('hit'):
-				self._hit(d)
-			else:
-				print "UNKNOWN ACTION", d
+		try:
+			for d in data:
+				if d.startswith('iwannaplay'):
+					self._register()
+				elif d.startswith('pos'):
+					self._position(d)
+				elif d.startswith('fire'):
+					self._fire()
+				elif d.startswith('hit'):
+					self._hit(d)
+				else:
+					print "UNKNOWN ACTION", d
+		except:
+			print 'It was nasty:', data
+			self.io.close()
 	
 	def _onClose(self):
 		print 'client gone'
