@@ -3,22 +3,6 @@ from base64 import b64encode
 import struct
 
 class WebSocket(object):
-	# draft 76 basics
-	HANDSHAKE76 = "\
-HTTP/1.1 101 WebSocket Protocol Handshake\r\n\
-Upgrade: WebSocket\r\n\
-Connection: Upgrade\r\n\
-Sec-WebSocket-Origin: %s\r\n\
-Sec-WebSocket-Location: ws://%s/\r\n\
-Sec-WebSocket-Protocol: sample\r\n\r\n%s"
-
-	HANDSHAKE13 = '\
-HTTP/1.1 101 Switching Protocols\r\n\
-Upgrade: websocket\r\n\
-Connection: Upgrade\r\n\
-Sec-WebSocket-Accept: %s\r\n\
-Sec-WebSocket-Protocol: chat\r\n\r\n'
-
 	def __init__(self, connection):
 		super(WebSocket, self).__init__()
 		# Protocol internals
@@ -47,7 +31,16 @@ Sec-WebSocket-Protocol: chat\r\n\r\n'
 		num2 = self._extractKey76(self.headers['Sec-WebSocket-Key2'])
 		pack = struct.pack('>II8s', num1, num2, self.data_buffer)
 		sign = md5(pack).digest()
-		self.connection.write(self.HANDSHAKE76 % (self.headers['Origin'], self.headers['Host'].strip(), sign))
+		# crafting response
+		response = 'HTTP/1.1 101 WebSocket Protocol Handshake\r\n'
+		response += 'Upgrade: WebSocket\r\n'
+		response += 'Connection: Upgrade\r\n'
+		response += 'Sec-WebSocket-Origin: %s\r\n' % self.headers['Origin']
+		response += 'Sec-WebSocket-Location: ws://%s/\r\n' % self.headers['Host'].strip()
+		response += 'Sec-WebSocket-Protocol: sample\r\n'
+		response += '\r\n'
+		response += sign
+		self.connection.write(response)
 		self.handshaked = True
 		self.data_buffer = ''
 
@@ -73,10 +66,19 @@ Sec-WebSocket-Protocol: chat\r\n\r\n'
 			self.connection.write(''.join(d))
 
 	# proto v13 latest
-	def _doHandshake13(self):
+	def _doHandshake13(self):		
 		step1 = sha1(self.headers['Sec-WebSocket-Key'].lstrip(' ') + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
 		step2 = b64encode(step1.digest())
-		self.connection.write(self.HANDSHAKE13 % step2)
+		# Craft respnse
+		response = 'HTTP/1.1 101 Switching Protocols\r\n'
+		response += 'Upgrade: websocket\r\n'
+		response += 'Connection: Upgrade\r\n'
+		response += 'Sec-WebSocket-Accept: %s\r\n' % step2
+		# chrome v20 strict
+		if self.headers.has_key('Sec-WebSocket-Protocol'):
+			response += 'Sec-WebSocket-Protocol: chat\r\n'
+		response += '\r\n'
+		self.connection.write(response)
 		self.handshaked = True
 		self.data_buffer = ''
 	
