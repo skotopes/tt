@@ -11,6 +11,8 @@ class WebSocket(object):
 		self.headers = None
 		self.handshaked = False
 		self.data_buffer = ''
+		self.msg_buffer = ''
+		self.messages = []
 		self.callbacks = {}
 		# Initialising primary connection callbacks
 		self.connection = connection
@@ -45,16 +47,13 @@ class WebSocket(object):
 		self.data_buffer = ''
 
 	def _doProcessData76(self):
-		d = []
 		# \x00test\xff
 		cnt = self.data_buffer.count('\xff')
 		while(cnt>0):
 			cnt-=1
 			p = self.data_buffer.find('\xff') + 1
-			d.append(self.data_buffer[0:p].lstrip('\x00').rstrip('\xff'))
+			self.messages.append(self.data_buffer[0:p].lstrip('\x00').rstrip('\xff'))
 			self.data_buffer = self.data_buffer[p:]
-		if len(d) > 0:
-			self.callbacks['data'](d)
 
 	def _write76(self, data):
 		if type(data) == str:
@@ -89,37 +88,93 @@ class WebSocket(object):
 			masked[i] = masked[i] ^ key[i%4]
 		return masked
 	
-	def _doExtractMessage(self):
-		first_byte = ord(self.data_buffer[0])
+	def _doExtractMessage13(self):
+		# First byte
+		# Extract payload description
+		ptr = 0
+		first_byte = ord(self.data_buffer[ptr])
 		fin = (first_byte >> 7) & 1
 		rsv1 = (first_byte >> 6) & 1
 		rsv2 = (first_byte >> 5) & 1
 		rsv3 = (first_byte >> 4) & 1
 		opcode = first_byte & 0xf
 		if fin not in [0, 1]:
-			raise Exception()
+			raise Exception("websocket 13: fin wtf?")
 		if rsv1 or rsv2 or rsv3:
-			raise Exception()
+			raise Exception("websocket 13: rsv not zero")
 		if 2 < opcode < 8 or opcode > 0xA:
-			raise Exception()
+			raise Exception("websocket 13: invalid opcode")
 		if opcode > 0x7 and fin == 0:
-			raise Exception()
-		second_byte = ord(self.data_buffer[1])
+			raise Exception("websocket 13: invalid fin/opcode combination")
+		ptr += 1
+		
+		# Second byte
+		# Extract payload length and masking bit
+		second_byte = ord(self.data_buffer[ptr])
 		mask = (second_byte >> 7) & 1
 		payload_length = second_byte & 0x7f
 		if opcode > 0x7 and payload_length > 125:
-			raise Exception()
+			raise Exception("websocket 13: invalid opcode/payload length combination")
+		ptr += 1
+		
+		# Insuring that we got enougth data to extract payload
+		length = 0
+		if 0 < payload_length < 125:
+			length = payload_length
+		elif payload_length == 126:
+			if len(self.data_buffer[ptr:]) < 2:
+				return False
+			length = struct.unpack('!H', self.data_buffer[ptr:ptr+2])[0]
+			ptr += 2
+		elif payload_length == 126:
+			if len(self.data_buffer[ptr:]) < 8:
+				return False
+			length = struct.unpack('!Q', self.data_buffer[ptr:ptr+8])[0]
+			ptr += 8
+		else:
+			raise Exception("websocket 13: programming error, payload length != 7 bit")
+		
+		# Extract masking key
 		if mask:
-			key = self.data_buffer[2:6]
-		msg = self._doMask13(self.data_buffer[6:payload_length+6], key)
-		self.data_buffer = self.data_buffer[payload_length+6:]
-		return msg
-			
+			if len(self.data_buffer[ptr:]) < 4:
+				return False
+			key = self.data_buffer[ptr:ptr+4]
+			ptr += 4
+		
+		# Do we have something interesting?
+		prepend = None
+		if opcode == 0x8: # close
+			prepend = 'close'
+			self.close()
+		elif opcode == 0x9: # ping
+			prepend = 'ping'
+		elif opcode == 0xA: # pong
+			prepend = 'pong'
+		
+		if length > 0:
+			if len(self.data_buffer[ptr:]) < length:
+				return False
+			if mask:
+				self.msg_buffer += self._doMask13(self.data_buffer[ptr:ptr+length], key)
+			else:
+				self.msg_buffer += self.data_buffer[ptr:ptr+length]
+			ptr += length
+		
+			if fin:
+				if prepend:
+					self.messages.append(prepend + ':' + self.msg_buffer)
+				else:
+					self.messages.append(self.msg_buffer)
+				self.msg_buffer = ''
+		
+		# Ok, one more time?
+		self.data_buffer = self.data_buffer[ptr:]
+		return True
+	
 	def _doProcessData13(self):
-		m = []
 		while len(self.data_buffer) > 2:
-			m.append(self._doExtractMessage())
-		self.callbacks['data'](m)
+			if not self._doExtractMessage13():
+				break
 
 	def _write13(self, data):
 		header = ''	
@@ -139,47 +194,54 @@ class WebSocket(object):
 		elif length < (1 << 63):
 			header += chr(mask_bit | 127) + struct.pack('!Q', length)
 		else:
-			# mb too big ?
-			raise Exception()
- 		self.connection.write(header + data)
+			raise Exception("websocket 13: data too big")
+		self.connection.write(header + data)
 	
 	# common private methods
+	def _extractHeaders(self):
+		# parse header section
+		method = None
+		headers = {}
+		(raw_headers, self.data_buffer) = self.data_buffer.split('\r\n\r\n')
+		for l in raw_headers.split('\r\n'):
+			if not method:
+				method = l
+				continue
+			k,v = l.split(':', 1)
+			headers[k] = v
+		# Commit extracted data 
+		self.method = method
+		self.headers = headers
+		# Detect protocol
+		if self.headers.has_key('Sec-WebSocket-Version'):
+			self.version = int(self.headers['Sec-WebSocket-Version'])
+		elif self.headers.has_key('Sec-WebSocket-Key1') and self.headers.has_key('Sec-WebSocket-Key2'):
+			self.version = 76
+		
+		self.write = getattr(self, '_write%d' % self.version)
+		self._doHandshake = getattr(self, '_doHandshake%d' % self.version)
+		self._doProcessData = getattr(self, '_doProcessData%d' % self.version)
+	
+	_doHandshake = None
+	
+	_doProcessData = None
+	
 	def _onData(self, data):
 		self.data_buffer += data
-		if self.handshaked == False:
-			if self.headers == None and self.data_buffer.find('\r\n\r\n') != -1:
-				# parse header section
-				method = None
-				headers = {}
-				(raw_headers, self.data_buffer) = self.data_buffer.split('\r\n\r\n')
-				for l in raw_headers.split('\r\n'):
-					if not method:
-						method = l
-						continue
-					k,v = l.split(':', 1)
-					headers[k] = v
-				# Commit extracted data 
-				self.method = method
-				self.headers = headers
-				# Detect protocol
-				if self.headers.has_key('Sec-WebSocket-Version'):
-					self.version = int(self.headers['Sec-WebSocket-Version'])
-				elif self.headers.has_key('Sec-WebSocket-Key1') and self.headers.has_key('Sec-WebSocket-Key2'):
-					self.version = 76
-				# Handshake with proper version
-				if self.version == 13:
-					self._doHandshake13()
-				elif self.version == 76:
-					self._doHandshake76()
-				else:
-					print "Unknown protocol version", self.headers
-					self.connection.close()
-		else:
-			# process data
-			if self.version == 76:
-				self._doProcessData76()
-			elif self.version == 13: 
-				self._doProcessData13()
+		try:
+			if self.handshaked == False:
+				if self.headers == None and self.data_buffer.find('\r\n\r\n') != -1:
+					self._extractHeaders()
+					self._doHandshake()
+			else:
+				self._doProcessData()
+				# callbacks
+				if len(self.messages) > 0:
+					self.callbacks['data'](self.messages)
+					self.messages = []
+		except Exception, e:
+			print 'websocket protocol error', e
+			self.connection.close()
 	
 	def _onClose(self):	
 		self.callbacks['close']()
@@ -189,19 +251,14 @@ class WebSocket(object):
 		self.callbacks['pause'](pause)
 	
 	# common public methods
-	def write(self, data):
-		if self.version == 76:
-			self._write76(data)
-		elif self.version == 13:
-			self._write13(data)
-
+	write = None
+	
 	def close(self):
 		self.connection.close()
-
+	
 	def pause(self, pause):
 		self.r_paused = pause
 		self.connection.pause(pause)
 	
 	def on(self, event, callback):
 		self.callbacks[event] = callback
-
