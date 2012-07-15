@@ -126,7 +126,7 @@ class WebSocket(object):
 				return False
 			length = struct.unpack('!H', self.data_buffer[ptr:ptr+2])[0]
 			ptr += 2
-		elif payload_length == 126:
+		elif payload_length == 127:
 			if len(self.data_buffer[ptr:]) < 8:
 				return False
 			length = struct.unpack('!Q', self.data_buffer[ptr:ptr+8])[0]
