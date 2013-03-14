@@ -30,32 +30,6 @@ class Main(object):
 	def actionStartWeb(self):
 		app.run()
 
-	def actionStartFCGI(self):
-		from flup.server.fcgi import WSGIServer
-		from daemon import DaemonContext
-		from lockfile import FileLock
-		from os import getpid
-		ctx = DaemonContext(
-			working_directory='.',
-			pidfile=FileLock('/tmp/tt-fcgi'),
-		)
-		ctx.stderr = open('fcgi.log', 'w+')
-		with ctx:
-			open('fcgi.pid', 'w').write(str(getpid()))
-			WSGIServer(app, bindAddress='fcgi.sock', umask=0000).run()
-
-	def actionStopFCGI(self):
-		from lockfile import FileLock
-		from os import kill
-		from time import sleep
-		kill(int(open('fcgi.pid', 'r').read()), 15)
-		lock = FileLock('/tmp/tt-fcgi')
-		countdown = 15
-		while lock.is_locked() and countdown > 0:
-			countdown -= 1
-		if lock.is_locked():
-			exit(1)
-
 	def actionStartGS(self):
 		from gameserver import GameServer
 		gs = GameServer()
